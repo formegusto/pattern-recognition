@@ -4,6 +4,7 @@ from sklearn.decomposition import PCA
 from sklearn.cluster import KMeans
 
 outlier_pca = PCA(n_components=1)
+kmeans_pca = PCA(n_components=2)
 
 
 def remove_outlier_single(datas, season_idx):
@@ -77,3 +78,37 @@ def elbow_k_check(check_size, points):
     K = max(diff_dict, key=diff_dict.get)
 
     return (K, k_range, inertia_arr)
+
+
+def get_kmeans_pca(rmout_spring_datas):
+    pca_datas = pd.DataFrame(kmeans_pca.fit_transform(
+        rmout_spring_datas), columns=['x', 'y'])
+    pca_datas['date'] = rmout_spring_datas.index
+
+    return pca_datas
+
+
+def get_statistic_cluster_datas(cluster_map_datas):
+    grouped = cluster_map_datas.groupby(['cluster', 'day_kr'])
+    statistic_cluster_datas = grouped.count()
+    statistic_cluster_datas.reset_index(inplace=True)
+
+    return statistic_cluster_datas
+
+
+def run_kmeans(K, pca_datas, datas):
+    kmeans_points = pca_datas[['x', 'y']].values
+
+    kmeans = KMeans(n_clusters=K)
+    kmeans.fit_transform(kmeans_points)
+
+    rtn_pca_datas = pca_datas.copy()
+    rtn_pca_datas['cluster'] = kmeans.labels_
+
+    cluster_datas = pd.DataFrame()
+    cluster_datas['date'] = datas.index
+    cluster_datas['cluster'] = kmeans.labels_
+    cluster_datas.set_index('date', inplace=True)
+    cluster_datas = cluster_datas.T
+
+    return (rtn_pca_datas, cluster_datas)
