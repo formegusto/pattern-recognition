@@ -3,10 +3,10 @@ import pandas as pd
 from sklearn.decomposition import PCA
 from sklearn.cluster import KMeans
 
+outlier_pca = PCA(n_components=1)
+
 
 def remove_outlier_single(datas, season_idx):
-    outlier_pca = PCA(n_components=1)
-
     copy_datas = datas[season_idx][datas[season_idx].columns.difference(
         ['year', 'month', 'day'])].copy()
     copy_datas.set_index('date', inplace=True)
@@ -28,8 +28,6 @@ def remove_outlier_single(datas, season_idx):
 
 
 def remove_outlier_multi(datas, season_idx):
-    outlier_pca = PCA(n_components=1)
-
     copy_datas = datas[season_idx][datas[season_idx].columns.difference(
         ['year', 'month', 'day'])].copy()
     copy_datas.set_index('date', inplace=True)
