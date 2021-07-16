@@ -7,6 +7,25 @@ outlier_pca = PCA(n_components=1)
 kmeans_pca = PCA(n_components=2)
 
 
+def remove_outlier(datas):
+    copy_datas = datas.copy()
+    pca_datas = pd.DataFrame(
+        outlier_pca.fit_transform(copy_datas), columns=['y'])
+    pca_datas.index = copy_datas.index
+
+    Q1 = np.percentile(pca_datas['y'], 25)
+    Q3 = np.percentile(pca_datas['y'], 75)
+    IQR = Q3 - Q1
+
+    outlier_step = 1.5 * IQR
+    outlier_step
+
+    remove_idx = pca_datas[(pca_datas['y'] < Q1 - IQR)
+                           | (pca_datas['y'] > Q3 + IQR)].index
+
+    return remove_idx.values
+
+
 def remove_outlier_single(datas, season):
     copy_datas = datas[season][datas[season].columns.difference(
         ['month'])].copy()
@@ -83,7 +102,11 @@ def elbow_k_check(check_size, points):
 def get_kmeans_pca(rmout_spring_datas):
     pca_datas = pd.DataFrame(kmeans_pca.fit_transform(
         rmout_spring_datas), columns=['x', 'y'])
-    pca_datas['date'] = rmout_spring_datas.index
+    if "uid" in rmout_spring_datas.index.names:
+        pca_datas['uid'] = [idx[0] for idx in rmout_spring_datas.index]
+        pca_datas['date'] = [idx[1] for idx in rmout_spring_datas.index]
+    else:
+        pca_datas['date'] = rmout_spring_datas.index
 
     return pca_datas
 
@@ -106,9 +129,14 @@ def run_kmeans(K, pca_datas, datas):
     rtn_pca_datas['cluster'] = kmeans.labels_
 
     cluster_datas = pd.DataFrame()
-    cluster_datas['date'] = datas.index
     cluster_datas['cluster'] = kmeans.labels_
-    cluster_datas.set_index('date', inplace=True)
+    if "uid" in datas.index.names:
+        cluster_datas['uid'] = [idx[0] for idx in datas.index]
+        cluster_datas['date'] = [idx[1] for idx in datas.index]
+        cluster_datas.set_index(['uid', 'date'], inplace=True)
+    else:
+        cluster_datas['date'] = datas.index
+        cluster_datas.set_index('date', inplace=True)
     cluster_datas = cluster_datas.T
 
     return (rtn_pca_datas, cluster_datas)
