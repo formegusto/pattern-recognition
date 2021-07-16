@@ -7,9 +7,9 @@ outlier_pca = PCA(n_components=1)
 kmeans_pca = PCA(n_components=2)
 
 
-def remove_outlier_single(datas, season_idx):
-    copy_datas = datas[season_idx][datas[season_idx].columns.difference(
-        ['year', 'month', 'day'])].copy()
+def remove_outlier_single(datas, season):
+    copy_datas = datas[season][datas[season].columns.difference(
+        ['month'])].copy()
     copy_datas.set_index('date', inplace=True)
     pca_datas = pd.DataFrame(
         outlier_pca.fit_transform(copy_datas), columns=['y'])
