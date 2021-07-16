@@ -24,7 +24,14 @@ def get_map_datas(datas, general_datas):
 
 
 def get_map_datas_cluster(datas, general_datas, cluster_datas):
-    if type(datas['봄']['date'][0]) != type(general_datas.columns[0]):
+    check_str = ''
+
+    if '월' in datas:
+        check_str = '월'
+    else:
+        check_str = '봄'
+
+    if type(datas[check_str]['date'][0]) != type(general_datas.columns[0]):
         general_datas = general_datas.T.copy()
     map_datas = pd.DataFrame()
 
