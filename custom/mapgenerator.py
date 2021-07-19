@@ -39,11 +39,12 @@ def get_map_datas_cluster(datas, general_datas, cluster_datas):
         new = pd.DataFrame()
         new['timeslot'] = range(0, 96)
         new['data'] = general_datas[date].values
-        if len(date) == 2:
+
+        if type(date) is tuple:
             new['uid'] = date[0]
             new['date'] = date[1]
         else:
-            new['date'] = date[1]
+            new['date'] = date
         new['cluster'] = cluster_datas[date]['cluster']
         map_datas = pd.concat([map_datas, new])
 
