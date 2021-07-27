@@ -46,9 +46,55 @@ class PatternKMeans:
             ]
         return dr_datas
 
+    # Remove Outlier
+    def remove_outlier(self):
+        datas = self.dimension_reduction()
+
+        # sim_info scaler (Min-Max Normalization)
+
+        datas['y'] = [
+            (val - datas['y'].min()) /
+            (datas['y'].max() - datas['y'].min())
+            for val in
+            datas['y'].values
+        ]
+        print(datas['y'].values)
+
+        dis_info = {
+            "Q1": np.percentile(datas['x'], 25),
+            "Q3": np.percentile(datas['x'], 75),
+        }
+        dis_info["IQR"] = dis_info["Q3"] - dis_info["Q1"]
+        dis_info["step"] = 1.5 * dis_info["IQR"]
+        dis_info["check"] = dis_info["Q3"] + dis_info["step"]
+        print("dis_info", dis_info)
+
+        sim_info = {
+            "Q1": np.percentile(datas['y'], 25),
+            "Q3": np.percentile(datas['y'], 75)
+        }
+        sim_info["IQR"] = sim_info["Q3"] - sim_info["Q1"]
+        sim_info["step"] = sim_info["IQR"]
+        sim_info["check"] = sim_info["Q1"] - sim_info["step"]
+        print("sim_info", sim_info)
+
+        remove_outlier_index = datas[
+            (datas['x'] > dis_info['Q3']) &
+            (datas['y'] < sim_info['Q1'])
+        ].copy().index
+
+        new_datas = self.datas.copy()
+        new_datas = new_datas.T
+        new_datas = new_datas.loc[~new_datas.index.isin(remove_outlier_index)]
+        new_datas = new_datas.T
+        self.datas = new_datas.copy()
+
+        # return datas.loc[~datas.index.isin(remove_outlier_index.values)].copy()
+
     # ECV = True, Loop until ECV >= 90
     # But Prev == Now is End
     # init is "random, worst, best"
+
     def run(self, init_condition="worst", ECV=False):
         sequence = 0
         row_datas = self.datas.T.copy()
