@@ -39,6 +39,7 @@ class PatternKMeans:
         self.cluster_info = pd.DataFrame()
         self.visual_datas = pd.DataFrame()
         self.cluster_cost_map = {}
+        self.dr_datas = pd.DataFrame()
 
     def set_K(self, K):
         print("K is {}".format(K))
@@ -58,6 +59,11 @@ class PatternKMeans:
 
         dr_datas['x'] = min_max_normalization(dr_datas['x'])
         dr_datas['y'] = min_max_normalization(dr_datas['y'])
+
+        self.dr_mean_pattern = [
+            dr_datas['x'].mean(),
+            dr_datas['y'].mean()
+        ]
 
         return dr_datas
 
@@ -191,52 +197,47 @@ class PatternKMeans:
                                 0, len(row_datas.index) - 1)
                             init_cluster_index = row_datas.index[init_k]
                         elif init_condition == "best":
-                            dr_datas = self.dimension_reduction()
-                            init_cluster_index = dr_datas.sort_values(
+                            self.dr_datas = self.dimension_reduction()
+                            init_cluster_index = self.dr_datas.sort_values(
                                 ['x', 'y'], ascending=[True, False]).index[0]
                         else:
-                            dr_datas = self.dimension_reduction()
-                            init_cluster_index = dr_datas.sort_values(
+                            self.dr_datas = self.dimension_reduction()
+                            init_cluster_index = self.dr_datas.sort_values(
                                 ['x', 'y'], ascending=[False, True]).index[0]
-
-                        init_cluster = row_datas.loc[init_cluster_index].copy()
+                        init_cluster = self.dr_datas.loc[init_cluster_index]
+                        # init_cluster = row_datas.loc[init_cluster_index].copy()
                         cluster_index.append(init_cluster_index)
                         self.cluster_dict[0] = init_cluster
                         self.cluster_cost_map[0] = 0
                     print("나머지")
                     # 나머지 K 초기화
-                    sim_arr = []
-                    sim_sort_arr = []
+                    # sim_arr = []
+                    # sim_sort_arr = []
                     for k in range(len(self.cluster_dict.keys()), self.K):
                         sim_arr = ['dis_{}'.format(idx) for idx in range(0, k)]
-                        sim_arr.extend(['cos_{}'.format(idx)
-                                        for idx in range(0, k)])
-                        sim_sort_arr = [
-                            True if (len(sim_arr) / 2) <= idx else False
-                            for idx in range(0, k * 2)
-                        ]
+                        # sim_arr.extend(['cos_{}'.format(idx)
+                        #                 for idx in range(0, k)])
+                        # sim_sort_arr = [
+                        #     True if (len(sim_arr) / 2) <= idx else False
+                        #     for idx in range(0, k * 2)
+                        # ]
                         sim_check = pd.DataFrame(columns=sim_arr)
                         for date in row_datas.index:
                             if date not in cluster_index:
                                 sim_check.loc[date] = [
-                                    cos_sim(
-                                        self.cluster_dict[idx -
-                                                          (len(sim_arr) / 2)],
-                                        row_datas.loc[date].values
-                                    )
-                                    if (len(sim_arr) / 2) <= idx else
                                     distance.euclidean(
                                         self.cluster_dict[idx],
-                                        row_datas.loc[date].values
+                                        self.dr_datas.loc[date].values
                                     )
                                     for idx in range(0, len(sim_arr))
                                 ]
                         k_index = sim_check.sort_values(
                             by=sim_arr,
-                            ascending=sim_sort_arr
+                            ascending=False
                         ).index[0]
                         cluster_index.append(k_index)
-                        self.cluster_dict[k] = row_datas.loc[k_index].copy()
+                        self.cluster_dict[k] = self.dr_datas.loc[k_index].copy(
+                        )
                         self.cluster_cost_map[k] = 0
 
                     # return sim_arr, sim_sort_arr, cluster_dict
@@ -248,7 +249,7 @@ class PatternKMeans:
                             self.cluster_info['label'] == k_num
                         ].index
                         if len(date_arr) != 0:
-                            self.cluster_dict[k_num] = row_datas.loc[date_arr].mean(
+                            self.cluster_dict[k_num] = self.dr_datas.loc[date_arr].mean(
                             ).values
                         self.cluster_cost_map[k_num] = 0
 
@@ -257,8 +258,9 @@ class PatternKMeans:
                 self.labels = []
                 # print(self.cluster_dict)
                 # print(type(self.cluster_dict[0]))
+
                 # similar check
-                cols = ['distance', 'similarity']
+                cols = ['distance']
                 rows = [idx for idx in range(0, self.K)]
                 sim_info = pd.DataFrame(columns=cols)
                 for date in row_datas.index:
@@ -268,15 +270,11 @@ class PatternKMeans:
                         sim_info.loc[row] = [
                             distance.euclidean(
                                 self.cluster_dict[row],
-                                row_datas.loc[date].values
-                            ),
-                            cos_sim(
-                                self.cluster_dict[row],
-                                row_datas.loc[date].values
+                                self.dr_datas.loc[date].values
                             )
                         ]
                     self.labels.append(sim_info.sort_values(
-                        by=cols, ascending=[True, False]).index[0])
+                        by=cols, ascending=True).index[0])
 
                 # cluster info
                 self.cluster_info['date'] = row_datas.index
@@ -299,6 +297,7 @@ class PatternKMeans:
                 sequence += 1
                 print("TSS: {}, WSS: {}, ECV: {}".format(
                     self.get_TSS(), self.get_WSS(), self.get_ECV()))
+
                 if prev_ecv == self.get_ECV():
                     break
                 else:
@@ -307,7 +306,7 @@ class PatternKMeans:
             isInOne, findIdx = self.has_one_member()
             print("isInOne: {}, findIdx: {}".format(isInOne, findIdx))
 
-            if self.get_ECV() >= 50:
+            if self.get_ECV() >= 87:
                 break
 
             if (len(findIdx) == 0) | (len(findIdx) >= (len(self.cluster_info['label'].unique()) - 2)):
@@ -339,9 +338,9 @@ class PatternKMeans:
                 ].index
 
                 new_dict_25 = pd.Series([np.percentile(
-                    self.datas.loc[idx], 25) for idx in self.datas[idxes].index], name="cluster-divide-25")
+                    self.dr_datas[idx], 25) for idx in self.dr_datas.loc[idxes]], name="cluster-divide-25")
                 new_dict_75 = pd.Series([np.percentile(
-                    self.datas.loc[idx], 75) for idx in self.datas[idxes].index], name="cluster-divide-75")
+                    self.dr_datas[idx], 75) for idx in self.dr_datas.loc[idxes]], name="cluster-divide-75")
                 self.cluster_cost_map[0] = 0
                 self.cluster_cost_map[1] = 0
 
@@ -360,6 +359,13 @@ class PatternKMeans:
         cost_map['count'] = self.cluster_info['label'].groupby(
             self.cluster_info['label']).count()
         cost_map['cost'] = self.cluster_cost_map.values()
+
+        cost_Q1 = np.percentile(cost_map['cost'], 25)
+        cost_Q3 = np.percentile(cost_map['cost'], 75)
+        cost_IQR = cost_Q3 - cost_Q1
+        cost_step = 1.5 * cost_IQR
+        print("cost Q3 Check Value: {}".format(cost_step))
+
         return cost_map
         # self.run(ECV=ECV, remove_outlier=remove_outlier)
         # if ECV == True:
@@ -500,8 +506,8 @@ class PatternKMeans:
         self.TSS = 0
         for date in self.datas:
             self.TSS += distance.euclidean(
-                self.mean_pattern,
-                self.datas[date].values
+                self.dr_mean_pattern,
+                self.dr_datas.loc[date].values
             ) ** 2
         return self.TSS
 
@@ -509,7 +515,7 @@ class PatternKMeans:
         self.WSS = 0
         for date in self.datas:
             k_num = self.cluster_info.loc[date]['label']
-            pattern = self.datas[date].values
+            pattern = self.dr_datas.loc[date].values
             self.WSS += distance.euclidean(
                 pattern,
                 self.cluster_dict[k_num]
