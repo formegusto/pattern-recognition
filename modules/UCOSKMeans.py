@@ -211,6 +211,8 @@ class UCOSKMeans:
                 ])
             sequence += 1
 
+            print("TSS: {}, WSS: {}, ECV: {}".format(
+                self.get_UCTSS(), self.get_UCWSS(), self.get_UCECV()))
             print("UCOSTSS: {}, UCOSWSS: {}, UCOSECV: {}".format(
                 self.get_TSS(), self.get_WSS(), self.get_ECV()))
 
@@ -219,7 +221,38 @@ class UCOSKMeans:
             else:
                 prev_ecv = self.get_ECV()
 
-    
+    def get_UCTSS(self):
+        self.UCTSS = 0
+        for date in self.datas:
+            self.UCTSS += distance.euclidean(
+                self.datas[date].values,
+                self.mean_pattern
+            ) ** 2
+        return self.UCTSS
+
+    def get_UCWSS(self):
+        self.UCWSS = 0
+
+        # 데이터 구축
+        cluster_patterns = {}
+        for k_num in self.cluster_dict.keys():
+            num, dates = k_num, self.cluster_info[
+                self.cluster_info['label'] == k_num
+            ].index
+            cluster_patterns[k_num] = self.datas.T.loc[dates].mean().values
+
+        for date in self.cluster_info.index:
+            k_num = self.cluster_info.loc[date]['label']
+            self.UCWSS += distance.euclidean(
+                cluster_patterns[k_num],
+                self.datas[date].values
+            ) ** 2
+
+        return self.UCWSS
+
+    def get_UCECV(self):
+        return (1 - (self.get_UCWSS() / self.get_UCTSS())) * 100
+
     def get_TSS(self):
         self.TSS = 0
         for date in self.datas:
