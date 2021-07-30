@@ -30,9 +30,9 @@ def min_max_normalization(list):
     ]
 
 
-class UCOSKMeans:
+class SortMeans:
     def __init__(self, init_datas, K=2):
-        print("---UCOSKMeans Init---\nK:{}".format(K))
+        print("---SortMeans Init---\nK:{}".format(K))
 
         self.K = K
         self.datas = init_datas
@@ -57,11 +57,6 @@ class UCOSKMeans:
         dr_datas['x'] = min_max_normalization(dr_datas['x'])
         dr_datas['y'] = min_max_normalization(dr_datas['y'])
 
-        self.dr_mean_pattern = [
-            dr_datas['x'].mean(),
-            dr_datas['y'].mean()
-        ]
-
         return dr_datas
 
     def remove_one_pattern(self):
@@ -79,11 +74,11 @@ class UCOSKMeans:
 
         self.datas = new_datas.copy()
         self.dr_datas = self.dimension_reduction()
-
+        print(remove_idxes)
         print("""-------Remove One Pattern Success-------\n  Target length {} -> {}""".format(og_length,
               len(self.datas.columns)))
-    # Remove Outlier
 
+    # Remove Outlier
     def remove_outlier(self):
         datas = self.dimension_reduction()
 
@@ -129,17 +124,17 @@ class UCOSKMeans:
         new_datas = new_datas.T
         new_datas = new_datas.loc[~new_datas.index.isin(remove_outlier_index)]
         new_datas = new_datas.T
-
+        print(remove_outlier_index)
         self.datas = new_datas.copy()
         self.dr_datas = self.dimension_reduction()
-
+        self.mean_pattern = self.datas.T.mean()
         print("""-------Remove Outlier Success-------\n  Target length {} -> {}""".format(og_length,
               len(self.datas.columns)))
 
         return new_datas, datas
 
     def run(self):
-        print("---Go UCOSMeans---")
+        print("---Go SortMeans---")
         self.remove_one_pattern()
         self.remove_outlier()
 
@@ -150,54 +145,61 @@ class UCOSKMeans:
             print("---Now {}---".format(sequence))
 
             if sequence == 0:
-                print("First K Init")
+                # print("First K Init")
                 cluster_index = []
                 # 첫 K 선정
                 init_cluster_idx = self.dr_datas.sort_values(
                     ['x', 'y'], ascending=[False, True]).index[0]
 
-                init_cluster = self.dr_datas.loc[init_cluster_idx]
+                init_cluster = self.datas[init_cluster_idx]
                 cluster_index.append(init_cluster_idx)
                 self.cluster_dict[0] = init_cluster
 
-                print("rest K Init!!")
+                # print("rest K Init!!")
                 for k in range(len(self.cluster_dict.keys()), self.K):
                     sim_arr = ['dis_{}'.format(idx) for idx in range(0, k)]
-                    # sim_arr.extend(['cos_{}'.format(idx)
-                    #                 for idx in range(0, k)])
-                    # sim_sort_arr = [
-                    #     True if (len(sim_arr) / 2) <= idx else False
-                    #     for idx in range(0, k * 2)
-                    # ]
+                    sim_arr.extend(['cos_{}'.format(idx)
+                                    for idx in range(0, k)])
+                    sim_sort_arr = [
+                        True if (len(sim_arr) / 2) <= idx else False
+                        for idx in range(0, k * 2)
+                    ]
                     sim_check = pd.DataFrame(columns=sim_arr)
                     for date in self.datas:
                         if date not in cluster_index:
                             sim_check.loc[date] = [
+                                cos_sim(
+                                    self.cluster_dict[idx -
+                                                      (len(sim_arr) / 2)],
+                                    self.datas[date].values
+                                )
+                                if (len(sim_arr) / 2) <= idx else
                                 distance.euclidean(
                                     self.cluster_dict[idx],
-                                    self.dr_datas.loc[date].values
+                                    self.datas[date].values
                                 )
                                 for idx in range(0, len(sim_arr))
                             ]
                     k_index = sim_check.sort_values(
                         by=sim_arr,
-                        ascending=False
+                        ascending=sim_sort_arr
                     ).index[0]
                     cluster_index.append(k_index)
-                    self.cluster_dict[k] = self.dr_datas.loc[k_index].copy()
+                    self.cluster_dict[k] = self.datas[k_index].copy()
             else:
                 for k_num in self.cluster_dict.keys():
                     date_arr = self.cluster_info[
                         self.cluster_info['label'] == k_num
                     ].index
                     if len(date_arr) != 0:
-                        self.cluster_dict[k_num] = self.dr_datas.loc[date_arr].mean(
+                        row_datas = self.datas.T.copy()
+                        self.cluster_dict[k_num] = row_datas.loc[date_arr].mean(
                         ).values
             self.cluster_info = pd.DataFrame()
             self.visual_datas = pd.DataFrame()
             self.labels = []
 
-            cols = ['distance']
+            cols = ['distance', 'similarity']
             rows = [idx for idx in range(0, self.K)]
             sim_info = pd.DataFrame(columns=cols)
             for date in self.datas:
@@ -207,11 +209,15 @@ class UCOSKMeans:
                     sim_info.loc[row] = [
                         distance.euclidean(
                             self.cluster_dict[row],
-                            self.dr_datas.loc[date].values
+                            self.datas[date].values
+                        ),
+                        cos_sim(
+                            self.cluster_dict[row],
+                            self.datas[date].values
                         )
                     ]
                 self.labels.append(sim_info.sort_values(
-                    by=cols, ascending=True).index[0])
+                    by=cols, ascending=[True, False]).index[0])
             # cluster info
             self.cluster_info['date'] = self.datas.columns
             self.cluster_info['label'] = self.labels
@@ -231,15 +237,15 @@ class UCOSKMeans:
                 ])
             sequence += 1
 
-            print("TSS: {}, WSS: {}, ECV: {}".format(
-                self.get_UCTSS(), self.get_UCWSS(), self.get_UCECV()))
-            print("UCOSTSS: {}, UCOSWSS: {}, UCOSECV: {}".format(
-                self.get_TSS(), self.get_WSS(), self.get_ECV()))
+            print("TSS: {}, WSS: {}, ECV: {}, CPDV: {}".format(
+                self.get_TSS(), self.get_WSS(), self.get_ECV(), self.get_CPDV()))
 
-            if prev_ecv == self.get_UCECV():
+            if prev_ecv == self.get_ECV():
+                # print("TSS: {}, WSS: {}, ECV: {}, CPDV: {}".format(
+                #     self.get_TSS(), self.get_WSS(), self.get_ECV(), self.get_CPDV()))
                 break
             else:
-                prev_ecv = self.get_UCECV()
+                prev_ecv = self.get_ECV()
 
     def get_UCTSS(self):
         self.UCTSS = 0
@@ -255,8 +261,9 @@ class UCOSKMeans:
 
         # 데이터 구축
         cluster_patterns = {}
+        # print(self.cluster_info)
         for k_num in self.cluster_dict.keys():
-            num, dates = k_num, self.cluster_info[
+            dates = self.cluster_info[
                 self.cluster_info['label'] == k_num
             ].index
             cluster_patterns[k_num] = self.datas.T.loc[dates].mean().values
@@ -277,8 +284,8 @@ class UCOSKMeans:
         self.TSS = 0
         for date in self.datas:
             self.TSS += distance.euclidean(
-                self.dr_mean_pattern,
-                self.dr_datas.loc[date].values
+                self.mean_pattern,
+                self.datas[date].values
             ) ** 2
         return self.TSS
 
@@ -286,7 +293,7 @@ class UCOSKMeans:
         self.WSS = 0
         for date in self.datas:
             k_num = self.cluster_info.loc[date]['label']
-            pattern = self.dr_datas.loc[date].values
+            pattern = self.datas[date].values
             self.WSS += distance.euclidean(
                 pattern,
                 self.cluster_dict[k_num]
@@ -296,3 +303,25 @@ class UCOSKMeans:
 
     def get_ECV(self):
         return (1 - (self.get_WSS() / self.get_TSS())) * 100
+
+    # Cluster Pattern Direction Value
+    def get_CPDV(self):
+        self.CPDV = 0
+        tmp_cpdv = []
+        for k_num in self.cluster_dict:
+            index = self.cluster_info[
+                self.cluster_info['label'] == k_num
+            ].index
+            for date in index:
+                tmp_cpdv.append(
+                    cos_sim(
+                        self.cluster_dict[k_num],
+                        self.datas[date].values
+                    )
+                )
+
+            # mean_pattern 을 기준으로 잡힌 애들한테 normalizing을 했으니까
+            # cluster 안에 있는 요소들을 다 계산한 후에 normalizing을 하는게
+            # 이론에 맞을 듯sㄷㄱㄸㅇㄱㄷㅇㄷ
+        self.CPDV = np.array(tmp_cpdv).mean()
+        return self.CPDV
