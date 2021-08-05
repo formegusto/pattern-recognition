@@ -8,6 +8,8 @@ import numpy as np
 from numpy import dot
 from numpy.linalg import norm
 
+import math
+
 
 def cos_sim(A, B):
     return dot(A, B)/(norm(A) * norm(B))
@@ -50,12 +52,16 @@ class SortMeans:
             dr_datas.loc[idx] = [
                 distance.euclidean(self.datas[idx].values,
                                    self.mean_pattern
-                                   ),
+                                   ) ** 2,
                 cos_sim(self.datas[idx].values, self.mean_pattern)
             ]
+        self.mean_dis = dr_datas['x'].values.mean()
+        print("mean_dis: {}".format(self.mean_dis))
 
         dr_datas['x'] = min_max_normalization(dr_datas['x'])
         dr_datas['y'] = min_max_normalization(dr_datas['y'])
+
+        self.mean_cdpv = dr_datas['y'].values.mean()
 
         return dr_datas
 
@@ -65,7 +71,7 @@ class SortMeans:
             if len(set(self.datas[idx].values)) == 1:
                 remove_idxes.append(idx)
 
-        og_length = len(self.datas.columns)
+        self.og_length = len(self.datas.columns)
 
         new_datas = self.datas.copy()
         new_datas = new_datas.T
@@ -74,9 +80,10 @@ class SortMeans:
 
         self.datas = new_datas.copy()
         self.dr_datas = self.dimension_reduction()
+
         print(remove_idxes)
-        print("""-------Remove One Pattern Success-------\n  Target length {} -> {}""".format(og_length,
-              len(self.datas.columns)))
+        # print("""-------Remove One Pattern Success-------\n  Target length {} -> {}""".format(self.og_length,
+        #       len(self.datas.columns)))
 
     # Remove Outlier
     def remove_outlier(self):
@@ -127,24 +134,28 @@ class SortMeans:
         print(remove_outlier_index)
         self.datas = new_datas.copy()
         self.dr_datas = self.dimension_reduction()
+
         self.mean_pattern = self.datas.T.mean()
-        print("""-------Remove Outlier Success-------\n  Target length {} -> {}""".format(og_length,
-              len(self.datas.columns)))
+        # print("""-------Remove Outlier Success-------\n  Target length {} -> {}""".format(og_length,
+        #       len(self.datas.columns)))
 
         return new_datas, datas
 
     def run(self):
         print("---Go SortMeans---")
+        self.og_length = len(self.datas.columns)
         self.remove_one_pattern()
         self.remove_outlier()
-
-        sequence = 0
+        self.new_length = len(self.datas.columns)
+        self.K = round(math.sqrt(self.new_length / 2))
+        print("---{} is K---".format(self.K))
+        self.sequence = 1
         prev_ecv = 0
         while True:
             self.visual_datas = pd.DataFrame()
-            print("---Now {}---".format(sequence))
+            print("---Now {}---".format(self.sequence))
 
-            if sequence == 0:
+            if self.sequence == 1:
                 # print("First K Init")
                 cluster_index = []
                 # 첫 K 선정
@@ -235,10 +246,10 @@ class SortMeans:
                     tmp,
                     self.visual_datas
                 ])
-            sequence += 1
+            self.sequence += 1
 
-            print("TSS: {}, WSS: {}, ECV: {}, CPDV: {}".format(
-                self.get_TSS(), self.get_WSS(), self.get_ECV(), self.get_CPDV()))
+            # print("TSS: {}, WSS: {}, ECV: {}, CPDV: {}".format(
+            #     self.get_TSS(), self.get_WSS(), self.get_ECV(), self.get_CPDV()))
 
             if prev_ecv == self.get_ECV():
                 # print("TSS: {}, WSS: {}, ECV: {}, CPDV: {}".format(

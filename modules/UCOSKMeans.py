@@ -8,6 +8,8 @@ import numpy as np
 from numpy import dot
 from numpy.linalg import norm
 
+import math
+
 
 def cos_sim(A, B):
     return dot(A, B)/(norm(A) * norm(B))
@@ -145,6 +147,7 @@ class UCOSKMeans:
 
         sequence = 0
         prev_ecv = 0
+
         while True:
             self.visual_datas = pd.DataFrame()
             print("---Now {}---".format(sequence))

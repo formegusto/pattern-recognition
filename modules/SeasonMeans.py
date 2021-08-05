@@ -8,6 +8,8 @@ import numpy as np
 from numpy import dot
 from numpy.linalg import norm
 
+import math
+
 
 def cos_sim(A, B):
     return dot(A, B)/(norm(A) * norm(B))
@@ -49,11 +51,28 @@ class SeasonMeans:
                 pattern,
                 self.cluster_dict[k_num]
             ) ** 2
-        print("- calc WSS success!")
+        print("- calc WSS(Within cluster Sum Of Squares) success!")
 
-    def cals_ecv(self):
+    def calc_ecv(self):
         self.ecv = (1 - (self.wss) / self.tss) * 100
-        print("- calc ECV success!")
+        print("- calc ECV(Explained Cluster Value) success!")
+
+    def calc_cdpv(self):
+        self.cdpv = 0
+        tmp_cdpv = []
+        for k_num in self.cluster_dict:
+            index = self.cluster_info[
+                self.cluster_info['label'] == k_num
+            ].index
+            for uid, date in index:
+                tmp_cdpv.append(
+                    cos_sim(
+                        self.cluster_dict[k_num],
+                        self.datas.loc[(uid, date)].values
+                    )
+                )
+        self.cdpv = np.array(tmp_cdpv).mean()
+        print("- calc CDPV(Cluster Pattern Direction Value) success!")
 
     def dimension_reduction(self):
         print("---Dimension Reduction---")
@@ -91,13 +110,13 @@ class SeasonMeans:
             (self.dr_datas['y'] <= sim_check)
         ].index
 
-        og_length = len(self.datas.index)
+        self.og_length = len(self.datas.index)
         self.dr_datas = self.dr_datas.loc[~self.dr_datas.index.isin(
             remove_index)]
         self.datas = self.datas.loc[~self.datas.index.isin(remove_index)]
 
-        new_length = len(self.datas.index)
-        print("- remove outlier success: {} => {}".format(og_length, new_length))
+        self.new_length = len(self.datas.index)
+        print("- remove outlier success: {} => {}".format(self.og_length, self.new_length))
         self.calc_tss()
 
     def run(self, K=10):
@@ -107,17 +126,22 @@ class SeasonMeans:
         self.dimension_reduction()
         self.remove_outlier()
 
-        sequence = 0
+        self.sequence = 1
         prev_ecv = 0
+
+        self.K = round(math.sqrt((len(self.datas.index) / 2)))
+        K = self.K
+        print("---K Setting {} ---".format(K))
+
         print("---{}:Clustering Start---".format(K))
         self.cluster_dict = {}
 
         while True:
-            print("---Now {}---".format(1))
+            print("---Now {}---".format(self.sequence))
             dr_datas = self.dr_datas.copy()
             datas = self.datas.copy()
 
-            if sequence == 0:
+            if self.sequence == 1:
                 print("---First Cluster Group Init---")
                 print("---First K Select---")
                 cluster_index = []
@@ -217,14 +241,17 @@ class SeasonMeans:
                     tmp,
                     self.visual_datas
                 ], ignore_index=True)
-            sequence += 1
+            self.sequence += 1
 
             self.calc_wss()
-            self.cals_ecv()
-            print("TSS: {}, WSS: {}, ECV: {}".format(
+            self.calc_ecv()
+            self.calc_cdpv()
+            print("{} : TSS: {}, WSS: {}, ECV: {}, CDPV: {}".format(
+                self.sequence,
                 self.tss,
                 self.wss,
-                self.ecv
+                self.ecv,
+                self.cdpv
             ))
 
             if prev_ecv == self.wss:
