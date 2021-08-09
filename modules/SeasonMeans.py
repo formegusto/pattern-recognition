@@ -111,8 +111,13 @@ class SeasonMeans:
         ].index
 
         self.og_length = len(self.datas.index)
+
         self.dr_datas = self.dr_datas.loc[~self.dr_datas.index.isin(
             remove_index)]
+
+        self.mdis = self.dr_datas['x'].mean()
+        self.mcdpv = self.dr_datas['y'].mean()
+
         self.datas = self.datas.loc[~self.datas.index.isin(remove_index)]
 
         self.new_length = len(self.datas.index)
